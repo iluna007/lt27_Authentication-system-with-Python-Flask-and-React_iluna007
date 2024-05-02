@@ -1,12 +1,8 @@
-"""
-This module takes care of starting the API Server, Loading the DB and Adding the endpoints
-"""
-import os
-from flask import Flask, request, jsonify, url_for, send_from_directory
-from flask_migrate import Migrate
-from flask_swagger import swagger
+from flask import Flask
+from api.routes import api
+from api.admin import setup_admin
 from api.utils import APIException, generate_sitemap
-from api.models import db
+from api.models import db, Teacher, Course, User
 from api.routes import api
 from api.admin import setup_admin
 from api.commands import setup_commands
@@ -14,7 +10,8 @@ from flask_jwt_extended import create_access_token
 from flask_jwt_extended import get_jwt_identity
 from flask_jwt_extended import jwt_required
 from flask_jwt_extended import JWTManager
-# from models import Person
+from flask_migrate import Migrate
+import os
 
 ENV = "development" if os.getenv("FLASK_DEBUG") == "1" else "production"
 static_file_dir = os.path.join(os.path.dirname(
@@ -24,7 +21,7 @@ app.config["JWT_SECRET_KEY"] = "ultra-secret"  # Change this!
 jwt = JWTManager(app)
 app.url_map.strict_slashes = False
 
-# database condiguration
+# database configuration
 db_url = os.getenv("DATABASE_URL")
 if db_url is not None:
     app.config['SQLALCHEMY_DATABASE_URI'] = db_url.replace(
@@ -32,9 +29,10 @@ if db_url is not None:
 else:
     app.config['SQLALCHEMY_DATABASE_URI'] = "sqlite:////tmp/test.db"
 
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-MIGRATE = Migrate(app, db, compare_type=True)
-db.init_app(app)
+# No need to create a new SQLAlchemy instance
+# db = SQLAlchemy(app)
+
+migrate = Migrate(app, db)
 
 # add the admin
 setup_admin(app)
@@ -72,12 +70,49 @@ def serve_any_other_file(path):
     response.cache_control.max_age = 0  # avoid cache memory
     return response
 
-@app.route("/login", methods=["POST"])
+###############################################################
+
+@app.route('/course', methods=['GET'])
+def get_course():
+    all_course = Course.query.all()
+    results = list(map(lambda elemento: elemento.serialize(), all_course))
+    return jsonify({"msg": "Hello course"}), 200
+
+@app.route('/course/<int:class_id>', methods=['GET'])
+def get_class_id(course_id):
+
+    print(course_id)
+    course = Course.query.filter_by(id=course_id).first()
+    return jsonify(course.serialize())
+
+
+###############################################################
+
+@app.route('/teacher', methods=['GET'])
+def get_teacher():
+    all_teachers = Teacher.query.all()
+    results = list(map(lambda elemento: elemento.serialize(), all_teachers))
+    return jsonify({"msg": "Hello Teacher"}), 200
+
+@app.route('/teacher/<int:teacher_id>', methods=['GET'])
+def get_teacher_id(teacher_id):
+
+    print(teacher_id)
+    teacher = Teacher.query.filter_by(id=teacher_id).first()
+    return jsonify(teacher.serialize())
+
+###############################################################
+
+
+@app.route("/login", methods=['POST'])
 def login():
     username = request.json.get("username", None)
     password = request.json.get("password", None)
+    user = User.query.filter_by(email=username).first()
+    print(user)
+    print(user.serialize())
     if username != "test" or password != "test":
-        return jsonify({"msg": "Bad username or password"}), 401
+        return jsonify({"msg": "Lo siento, tu password o username esta incorrecta"}), 401
 
     access_token = create_access_token(identity=username)
     return jsonify(access_token=access_token)
